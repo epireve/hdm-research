@@ -1,6 +1,7 @@
 import json
 import logging
 import time
+import os
 
 from .utils import FunctionSpec, OutputType, opt_messages_to_list, backoff_create
 from funcy import notnone, once, select_values
@@ -10,6 +11,7 @@ from rich import print
 logger = logging.getLogger("ai-scientist")
 
 _client: openai.OpenAI = None  # type: ignore
+_openrouter_client: openai.OpenAI = None  # type: ignore
 
 OPENAI_TIMEOUT_EXCEPTIONS = (
     openai.RateLimitError,
@@ -25,13 +27,35 @@ def _setup_openai_client():
     _client = openai.OpenAI(max_retries=0)
 
 
+@once
+def _setup_openrouter_client():
+    global _openrouter_client
+    if "OPENROUTER_API_KEY" not in os.environ:
+        raise ValueError("OPENROUTER_API_KEY environment variable not set")
+    _openrouter_client = openai.OpenAI(
+        api_key=os.environ["OPENROUTER_API_KEY"],
+        base_url="https://openrouter.ai/api/v1",
+        max_retries=0
+    )
+
+
 def query(
     system_message: str | None,
     user_message: str | None,
     func_spec: FunctionSpec | None = None,
     **model_kwargs,
 ) -> tuple[OutputType, float, int, int, dict]:
-    _setup_openai_client()
+    # Check if this is an OpenRouter model
+    model = model_kwargs.get("model", "")
+    if model.startswith("openrouter/"):
+        _setup_openrouter_client()
+        client = _openrouter_client
+        # Replace the model name for OpenRouter
+        model_kwargs["model"] = model.replace("openrouter/", "")
+    else:
+        _setup_openai_client()
+        client = _client
+    
     filtered_kwargs: dict = select_values(notnone, model_kwargs)  # type: ignore
 
     messages = opt_messages_to_list(system_message, user_message)
@@ -43,7 +67,7 @@ def query(
 
     t0 = time.time()
     completion = backoff_create(
-        _client.chat.completions.create,
+        client.chat.completions.create,
         OPENAI_TIMEOUT_EXCEPTIONS,
         messages=messages,
         **filtered_kwargs,

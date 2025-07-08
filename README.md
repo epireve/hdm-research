@@ -68,6 +68,15 @@ By default, the system uses the `OPENAI_API_KEY` environment variable for OpenAI
 
 By default, the system uses the `GEMINI_API_KEY` environment variable for Gemini models through OpenAI API.
 
+#### OpenRouter Models (NEW)
+
+OpenRouter provides access to multiple LLM providers through a single API. Set the `OPENROUTER_API_KEY` environment variable and prefix any model with `openrouter/`. For example:
+- `openrouter/anthropic/claude-3.5-sonnet`
+- `openrouter/openai/gpt-4-turbo`
+- `openrouter/meta-llama/llama-3.1-405b-instruct`
+
+See [OPENROUTER_INTEGRATION.md](OPENROUTER_INTEGRATION.md) for detailed setup and usage instructions.
+
 #### Claude Models via AWS Bedrock
 
 To use Claude models provided by Amazon Bedrock, install the necessary additional packages:
@@ -86,6 +95,7 @@ Ensure you provide the necessary API keys as environment variables for the model
 ```bash
 export OPENAI_API_KEY="YOUR_OPENAI_KEY_HERE"
 export S2_API_KEY="YOUR_S2_KEY_HERE"
+export OPENROUTER_API_KEY="YOUR_OPENROUTER_KEY_HERE"  # For OpenRouter models
 # Set AWS credentials if using Bedrock
 # export AWS_ACCESS_KEY_ID="YOUR_AWS_ACCESS_KEY_ID"
 # export AWS_SECRET_ACCESS_KEY="YOUR_AWS_SECRET_KEY"

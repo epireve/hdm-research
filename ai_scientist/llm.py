@@ -51,6 +51,14 @@ AVAILABLE_LLMS = [
     "gemini-2.0-flash",
     "gemini-2.5-flash-preview-04-17",
     "gemini-2.5-pro-preview-03-25",
+    # OpenRouter models (add prefix "openrouter/" to any model)
+    "openrouter/anthropic/claude-3.5-sonnet",
+    "openrouter/anthropic/claude-3-opus",
+    "openrouter/openai/gpt-4",
+    "openrouter/openai/gpt-4-turbo",
+    "openrouter/google/gemini-pro-1.5",
+    "openrouter/meta-llama/llama-3.1-70b-instruct",
+    "openrouter/meta-llama/llama-3.1-405b-instruct",
 ]
 
 
@@ -148,6 +156,25 @@ def get_batch_responses_from_llm(
         new_msg_history = [
             new_msg_history + [{"role": "assistant", "content": c}] for c in content
         ]
+    elif model.startswith("openrouter/"):
+        # OpenRouter uses OpenAI-compatible API
+        actual_model = model.replace("openrouter/", "")
+        new_msg_history = msg_history + [{"role": "user", "content": msg}]
+        response = client.chat.completions.create(
+            model=actual_model,
+            messages=[
+                {"role": "system", "content": system_message},
+                *new_msg_history,
+            ],
+            temperature=temperature,
+            max_tokens=MAX_NUM_TOKENS,
+            n=n_responses,
+            stop=None,
+        )
+        content = [r.message.content for r in response.choices]
+        new_msg_history = [
+            new_msg_history + [{"role": "assistant", "content": c}] for c in content
+        ]
     else:
         content, new_msg_history = [], []
         for _ in range(n_responses):
@@ -202,7 +229,21 @@ def make_llm_call(client, model, temperature, system_message, prompt):
             n=1,
             seed=0,
         )
-    
+    elif model.startswith("openrouter/"):
+        # OpenRouter uses OpenAI-compatible API
+        actual_model = model.replace("openrouter/", "")
+        return client.chat.completions.create(
+            model=actual_model,
+            messages=[
+                {"role": "system", "content": system_message},
+                *prompt,
+            ],
+            temperature=temperature,
+            max_tokens=MAX_NUM_TOKENS,
+            n=1,
+            stop=None,
+            seed=0,
+        )
     else:
         raise ValueError(f"Model {model} not supported.")
 
@@ -371,6 +412,22 @@ def get_response_from_llm(
         )
         content = response.choices[0].message.content
         new_msg_history = new_msg_history + [{"role": "assistant", "content": content}]
+    elif model.startswith("openrouter/"):
+        # OpenRouter uses OpenAI-compatible API
+        actual_model = model.replace("openrouter/", "")
+        new_msg_history = msg_history + [{"role": "user", "content": msg}]
+        response = client.chat.completions.create(
+            model=actual_model,
+            messages=[
+                {"role": "system", "content": system_message},
+                *new_msg_history,
+            ],
+            temperature=temperature,
+            max_tokens=MAX_NUM_TOKENS,
+            n=1,
+        )
+        content = response.choices[0].message.content
+        new_msg_history = new_msg_history + [{"role": "assistant", "content": content}]
     else:
         raise ValueError(f"Model {model} not supported.")
 
@@ -468,6 +525,17 @@ def create_client(model) -> tuple[Any, str]:
             openai.OpenAI(
                 api_key=os.environ["GEMINI_API_KEY"],
                 base_url="https://generativelanguage.googleapis.com/v1beta/openai/",
+            ),
+            model,
+        )
+    elif model.startswith("openrouter/"):
+        print(f"Using OpenRouter API with {model}.")
+        if "OPENROUTER_API_KEY" not in os.environ:
+            raise ValueError("OPENROUTER_API_KEY environment variable not set")
+        return (
+            openai.OpenAI(
+                api_key=os.environ["OPENROUTER_API_KEY"],
+                base_url="https://openrouter.ai/api/v1",
             ),
             model,
         )
